@@ -12,8 +12,8 @@ VID_SHIFTMD equ $FF8260; Video Shifter Mode for changing resolution?
 VALUE_HIDE_BULLET equ $FFFF
 MAX_PLAYER_LIVES equ $9 ; check against this value but the max is actually one less If >9 = 8
 SCREEN_SIZE_LONGS equ $1F3F ;32000/4 -1	Number of longs inside the image data MINUS 1
-VALUE_BUFFER_SIZE equ $7E00 ; 32256 used for screen buffer size, 30,000 screen size plus a sprite buffer?
-VALUE_SCREEN_SIZE equ $7D00 ; 32256 used for screen buffer size, 30,000 screen size plus a sprite buffer?
+;VALUE_BUFFER_SIZE equ $7E00 ; 32256 used for screen buffer size, 30,000 screen size plus a sprite buffer?
+;VALUE_SCREEN_SIZE equ $7D00 ; 32256 used for screen buffer size, 30,000 screen size plus a sprite buffer?
 VALUE_SCREEN_WIDTH equ $13F ; 320 minus 1
 VALUE_SCREEN_HEIGHT equ $C7 ;200 minus 1
 VALUE_CENTIPEDE_SPRITE_END equ $30; originally $30 (3rd sprite in the data chunk), if you increase this will start showing numbers!

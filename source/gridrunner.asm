@@ -13,11 +13,49 @@
     SECTION TEXT ;<VASM>
 	include "equates.asm"
 ; ---------------------------------------------------------------------------
-				move.w	#3,-(sp)	;Logbase / screen address
-				trap	#14		;XBIOS
-				addq.l	#2,sp
+	clr.w	-(sp)		;Set to zero ( which is low resolution )
+	move.l	#-1,-(sp)	; phys = SCR_NOCHANGE -1 ( this means DO NOT alter the physical addresses of screen memory )
+	move.l	#-1,-(sp)	; log = SCR_NOCHANGE -1 ( this means DO NOT alter the logical addresses of screen memory )
+	move.w	#5,-(sp)	;Setscreen()
+	trap	#14		;XBIOS
+	add.l	#12,sp
 
-				move.l	d0,(lPointerScreenBufferA).l		;Use the default Atari screen as Screen A. We know it is free and correctly aligned
+	DC.W	$a00a		;Line A 10 : Hide the cursor
+
+	move.l	#Array_AlignmentBuffer,-(sp)	;New palette data shoved into a pre-existing buffer
+	move.w	#6,-(sp)	;Setpalette
+	trap	#14		;XBIOS
+	addq.l	#6,sp
+
+	move.w	#3,-(sp)	;Logbase / screen address
+	trap	#14		;XBIOS
+	addq.l	#2,sp
+
+	move.l	d0,(lPointerScreenBufferA).l ; uae the default ST screen as a buffer as we know it is available and properly aligned
+	move.l	d0,a3		;Logbase / screen address copy to a3
+	move.l	#Array_ScreenBufferC,a0	;Title image stored in this buffer before the games starts to use it
+	move.l	a3,a1		;Destination
+
+	move.w	#SCREEN_SIZE_LONGS,d0	;Number of longs inside the image data MINUS 1
+
+loopcopy:
+	move.l	(a0)+,(a1)+
+	dbf	d0,loopcopy
+
+	move.w	#8,-(sp)	;Cnecin - wait for key press
+	trap	#1		;GEMDOS
+	addq.l	#2,sp
+
+;clear our title screen for a smoother transition into the game
+	movea.l (lPointerScreenBufferA).l,a0   ; Move Address
+    bsr.w   CLEAR_SCREEN_BUFFER_A0       ; Branch to Subroutine
+
+; ---------------------------------------------------------------------------
+				;move.w	#3,-(sp)	;Logbase / screen address
+				;trap	#14		;XBIOS
+				;addq.l	#2,sp
+
+				;move.l	d0,(lPointerScreenBufferA).l		;moved code above into the title screen.
 
                 ; Enter supervisor mode
                 move.l  #0,-(sp)        ; Move Data from Source to Destination
@@ -25,13 +63,13 @@
                 trap    #1              ; Trap (#vector Exception)
                 adda.l  #6,sp           ; Add Address
 
-                move.b  #0,(VID_SHIFTMD).l  ; Set screen mode to 320x200 with 16 colours
+                ;move.b  #0,(VID_SHIFTMD).l  ; Set screen mode to 320x200 with 16 colours already done this above in the title screen code above
 
                 move.l  #func_JustReturn,lPointerRunFunctionVBL ; Move Data from Source to Destination
                 clr.w   wVBlankLogicActive      
                 clr.w   wGameLogicActive      ; Clear an Operand
 
-                movea.l #(wPaletteArray),a0 ; Move Address
+                movea.l #(wPaletteArray),a0 ; Moved further down
                 jsr     func_LoadColourPalette       ; Jump to Subroutine
 				
 				move.l	#Array_ScreenBufferB,(lPointerScreenBufferB).l ; merge the above two lines into 1
@@ -68,10 +106,11 @@ SKIP_ADDITION:
 				move.l	#VALUE_SPRITE_BUFFER_TERMINATE,Array_SpriteBuffer1 ; replace the above two lines
                 clr.l   lScoreHigh      ; Removing to shrink the code 6 bytes each
                 clr.l   lScoreLow      ; Clear an Operand
-                move.b  #VAL_STARTING_LIVES,wPlayerLives   ; Move Data from Source to Destination
+                move.b  #VAL_STARTING_LIVES,wPlayerLives   ; Move Data from Source to Destination				
                 bsr.w   SETUP_ALL_SCREEN_BUFFERS       ; Branch to Subroutine
                 move.b  #1,wLivesUpdateHUD   ; Move Data from Source to Destination
                 bsr.w   BUFFERC_DRAWHUD       ; Branch to Subroutine
+				
 				
                 move.l  (lPointerScreenBufferA).l,d0   ; Move Data from Source to Destination
                 ; Just getting the High Value of the buffer for the VIDHI?
@@ -84,7 +123,7 @@ SKIP_ADDITION:
                 movep.w d0,0(a0)        ; Why is this done twice?
 				
 				
-                bra.w   AWAIT_MOUSE_PRESS00       ; Branch Always
+                ;bra.w   AWAIT_MOUSE_PRESS00       ; Since we have a press key to show the title screen, hidden this
 ; ---------------------------------------------------------------------------
 ;was loc_12696:
 RESTART_GAME_SCREENS:                              
@@ -751,6 +790,7 @@ loc_12E16:                              ; This should be for all options greater
 ;-------------------------------------------------------------------------
 COPY_BUFFER_C_TO_ALL:
                                    ; CODE XREF: SETUP_ALL_SCREEN_BUFFERS+40↑p
+				move.b	#1,wXzapperSpeed ; <GRH> added this to try and fix the odd bug where the bottom enemy goes too fast on reset.
                 movea.l (lPointerScreenBufferA).l,a0   ; Move Address
                 move.w  #SCREEN_SIZE_LONGS,d0       ; Move Data from Source to Destination
                 movea.l (lPointerScreenBufferC).l,a1   ; Move Address
@@ -1245,15 +1285,15 @@ loc_13230:                              ; CODE XREF: ROM:00013208↑j
 lAddressListX3: ; 3 addresses one after another
 		ds.b $C
 Pattern_Gridparts:
-		INCBIN "Grid.spr" ; I think these are single colour only so called them Patterns rather than sprites until I have done further research.
+		INCBIN "Grid.spr" ; These are single colour only so called them Patterns rather than sprites
 Pattern_Player:
-		INCBIN "PlayerShip.spr"
+		INCBIN "PlayerShip.spr" ; they are 16 bits wide ( 2 bytes ) with a height of 8 pixels
 Pattern_BulletPlayer:
 		INCBIN "PlayerBullet.spr"
 Pattern_GridSearchSquad:
 		INCBIN "GridSearcher.spr" ;the main enemy sprite on the grid, aka Centipede
 Pattern_Numbers:
-		INCBIN "Numbers.spr" ; need to make sure this is below centipede data as it is referenced afterwards.
+		INCBIN "Numbers.spr" ; some contain multiple entries such as this one
 wDrawLoop:
 		dc.b $00,$07
 Pattern_yZapper:
@@ -1377,10 +1417,14 @@ wEnemyLevel: ; Starts/resets at 2, increased by 1 after level up. Also changes t
 	ds.w $1
 Array_ScreenBufferB:
 	ds.b $7d00 ; dec 32000
+	SECTION DATA;<VASM>
 Array_AlignmentBuffer:
-	ds.b $100 ; dec 256, overall both buffers are $7e00 dec 3225
+	INCBIN	title.pal ; $20 dec 32 bytes, sticking the title screen palette here as it will mostly be unused or get wiped after use
+	ds.b $e0
+	;ds.b $100 ; dec 256, need to ensure our screen buffer is properly aligned ( ends zero zero )
 Array_ScreenBufferC:
-	ds.b $7d00 ; dec 32000
+	INCBIN	title.pic ; use a preloaded picture, the filesize will increase but memory usage remains the same
+	;ds.b $7d00 ; dec 32000
 ;GAP_BUFFER_02:
 ;	ds.b $100 ; is this one needed? The data is just copied so it doesn't need to be aligned
 	; end of 'ROM'
