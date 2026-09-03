@@ -13,6 +13,7 @@ This is an update of the mwenge's decompilation where I have tried to remove any
 VASM was used with the following settings "vasmm68k_mot gridrunner.asm -m68000 -Ftos -o smalgrid.prg"
 
 According to VASM this program should take up 82116 bytes of memory ( not including the ST's default screen buffer ) so there should be plenty of room for adding sound FX, a title screen and the high score board.
+UPDATE - Added a title screen which has increase the program size but barely changed the memory footprint
 
 
 
