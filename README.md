@@ -7,6 +7,7 @@ In my testing I was able to run Gridrunner on the Hatari emulator with the follo
   
 If you have one of those rare machines please test this and let me know how it goes.
 The game should be run in Low resolution and has no sound, just use the mouse to move your ship and button 1 to fire / restart after death.
+Instead of restarting after running out of lives press mouse button 2 to quit.
 
 The original decompilation can be found here. https://github.com/mwenge/gridrunner.
 This is an update of the mwenge's decompilation where I have tried to remove any hard coded addresses and set it up for use with a modern assembler.
