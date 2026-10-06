@@ -7,7 +7,15 @@ VID_COLOR0 equ $FF8240
 VID_COLOR2 equ $FF8244 ;  VID_COLOUR2 comes from Debug in Hatari
 VID_COLOR8 equ $FF8250
 VID_SHIFTMD equ $FF8260; Video Shifter Mode for changing resolution?
-
+;-------------> TRAP RELATED -----------------------------------------------
+;
+GEMDOS	equ $1
+BIOS	equ $D ;dec 13
+XBIOS	equ $E ; dec 14
+PTERM 	equ $4c ;dec 76
+SUPERVISOR_G equ $20 ;dec 32
+IKEYBD_VECTORS equ $22 ;dec 34
+LOCATION_MOUSEVECTOR equ $10 ; dec 16, joystick is 24, clock is inbetween mouse and joystick.
 ;STATIC VALUES, not pointers!
 VALUE_HIDE_BULLET equ $FFFF
 MAX_PLAYER_LIVES equ $9 ; check against this value but the max is actually one less If >9 = 8
@@ -28,7 +36,7 @@ VALUE_XGRID_MAX equ $130 ; 304, can't see what this does look at it in the debug
 MAX_HORIZONTAL_CENTIPEDE equ $130 ; 304, the cut off for the enemy
 VALUE_SPRITE_BUFFER_TERMINATE equ $FFFFFE0C ; what does this relate to? MC6850 ACIA $FFFC00 is keyb,$FFFC04 is the MIDI. Or even a negative number? would be minus 499 in decimal
 STATUS_REGISTER_SETTINGS equ $3200 ; 0011001000000000 - Sets Bit #9, Bit #12 and Bit #13
-DRAW_SETTING_00 equ $0
+DRAW_SETTING_00 equ $0 ; i think that these are colours since the sprites are mono
 DRAW_SETTING_01 equ $1
 DRAW_SETTING_GRID equ $2 ; grid,
 DRAW_SETTING_03 equ $3 ; anything greater than this is it's own setting.
@@ -44,8 +52,8 @@ CLAMP_PLAYER_Y_LOW equ $50 ; 80
 CLAMP_PLAYER_Y_HIGH equ $B7 ; 183
 CLAMP_PLAYER_X_LOW equ $8 ; 8
 CLAMP_PLAYER_X_HIGH equ $12F ; 303
-LEFT_MOUSE_BUTTON equ $1
-RIGHT_MOUSE_BUTTON equ $2 ; doesnt work need to get a different bit or maybe d1 I think?
+LEFT_MOUSE_BUTTON equ $1 ; this is just for checking the bit
+RIGHT_MOUSE_BUTTON equ $f9 ;this is the actual value
 RESTORE_SCREENDOWN equ $1E ; decimal 30. this might be used in multiple places
 VALUE_PROJECTILE_LOOP equ $1E ; don't think this is the same as above, maximum projectiles maybe?
 SIZE_PROJECTILE_DATA equ $3FF ; 1023, data in bytes maybe? the above is the amount of entries? 34 x 30 = 1020

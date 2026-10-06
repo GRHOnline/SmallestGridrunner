@@ -7,49 +7,14 @@
 ;
 ; The original home of this file is at: https://github.com/mwenge/gridrunner
 ;
-;
+; my update https://github.com/GRHOnline/SmallestGridrunner
 ; ===========================================================================
 	comment HEAD=0001;<VASM> TOSFLAG = PF_TTRAMLOAD
     SECTION TEXT ;<VASM>
 	include "equates.asm"
+	
 ; ---------------------------------------------------------------------------
-	clr.w	-(sp)		;Set to zero ( which is low resolution )
-	move.l	#-1,-(sp)	; phys = SCR_NOCHANGE -1 ( this means DO NOT alter the physical addresses of screen memory )
-	move.l	#-1,-(sp)	; log = SCR_NOCHANGE -1 ( this means DO NOT alter the logical addresses of screen memory )
-	move.w	#5,-(sp)	;Setscreen()
-	trap	#14		;XBIOS
-	add.l	#12,sp
-
-	DC.W	$a00a		;Line A 10 : Hide the cursor
-
-	move.l	#Array_AlignmentBuffer,-(sp)	;New palette data shoved into a pre-existing buffer
-	move.w	#6,-(sp)	;Setpalette
-	trap	#14		;XBIOS
-	addq.l	#6,sp
-
-	move.w	#3,-(sp)	;Logbase / screen address
-	trap	#14		;XBIOS
-	addq.l	#2,sp
-
-	move.l	d0,(lPointerScreenBufferA).l ; uae the default ST screen as a buffer as we know it is available and properly aligned
-	move.l	d0,a3		;Logbase / screen address copy to a3
-	move.l	#Array_ScreenBufferC,a0	;Title image stored in this buffer before the games starts to use it
-	move.l	a3,a1		;Destination
-
-	move.w	#SCREEN_SIZE_LONGS,d0	;Number of longs inside the image data MINUS 1
-
-loopcopy:
-	move.l	(a0)+,(a1)+
-	dbf	d0,loopcopy
-
-	move.w	#8,-(sp)	;Cnecin - wait for key press
-	trap	#1		;GEMDOS
-	addq.l	#2,sp
-
-;clear our title screen for a smoother transition into the game
-	movea.l (lPointerScreenBufferA).l,a0   ; Move Address
-    bsr.w   CLEAR_SCREEN_BUFFER_A0       ; Branch to Subroutine
-
+	include "custom_intro.asm" ; moved all my extra code into their own files
 ; ---------------------------------------------------------------------------
 				;move.w	#3,-(sp)	;Logbase / screen address
 				;trap	#14		;XBIOS
@@ -58,11 +23,12 @@ loopcopy:
 				;move.l	d0,(lPointerScreenBufferA).l		;moved code above into the title screen.
 
                 ; Enter supervisor mode
-                move.l  #0,-(sp)        ; Move Data from Source to Destination
-                move.w  #$20,-(sp) ; GEMDOS SUPER
-                trap    #1              ; Trap (#vector Exception)
+                clr.l	-(sp)        ; Move Data from Source to Destination
+                move.w  #SUPERVISOR_G,-(sp) ; GEMDOS SUPER
+                trap    #GEMDOS           ; Trap (#vector Exception)
                 adda.l  #6,sp           ; Add Address
-
+				move.l	d0,lOldStack          ; backup old stack pointer
+				
                 ;move.b  #0,(VID_SHIFTMD).l  ; Set screen mode to 320x200 with 16 colours already done this above in the title screen code above
 
                 move.l  #func_JustReturn,lPointerRunFunctionVBL ; Move Data from Source to Destination
@@ -72,7 +38,8 @@ loopcopy:
                 movea.l #(wPaletteArray),a0 ; Moved further down
                 jsr     func_LoadColourPalette       ; Jump to Subroutine
 				
-				move.l	#Array_ScreenBufferB,(lPointerScreenBufferB).l ; merge the above two lines into 1
+				;align Screen Buffer B properly ( ends 00 ) so it can be used as the screen. Wasteful of memory but it works!
+				move.l	#Array_ScreenBufferB,(lPointerScreenBufferB).l
 				clr.l	d2
 				move.b	#VALUE_ALIGNMENT,d2
 				move.l	lPointerScreenBufferB,d3
@@ -84,16 +51,28 @@ loopcopy:
 				add.l	#1,lPointerScreenBufferB ; we need to add 1 to go from FF to 100
 				
 SKIP_ADDITION:
-				move.l	#Array_ScreenBufferC,(lPointerScreenBufferC).l ; merge the above two lines into 1
+				move.l	#Array_ScreenBufferC,(lPointerScreenBufferC).l 
 
+				; this old joystick code should be able to be modifed to get the old mouse vector
+                move.w  #IKEYBD_VECTORS,-(a7)
+                trap    #XBIOS
+                addq.l  #2,a7                    ; return IKBD vector table
+
+                move.l  d0,ikbd_vec              ; store IKBD vectors address
+                move.l  d0,a0                    ; a0 points to IKBD vectors
+                move.l  LOCATION_MOUSEVECTOR(a0),lOldMouseVector           ; backup old mouse vector
+				
                 move.l  #MouseVector,-(sp) ; vector for mouse
                 move.l  #lMouseParameters,-(sp) ; parameter block address
-                move.w  #1,-(sp)        ; Move Data from Source to Destination
+                move.w  #1,-(sp)        ; Setting to start reporting / running our code
                 clr.w   -(sp)           ; XBIOS 0 Initmouse
-                trap    #$E             ; Trap (#vector Exception)
+                trap    #XBIOS            ; Trap (#vector Exception)
                 adda.l  #$C,sp          ; Tidy the stack
 
-                move.l  #vbl_routine,(VBLANK_SYNC70).l ; Point to the routine to fire on VBLANK
+				move.l  #old_vbl,a0 ; Backup the original VBLANK routine
+                move.l  VBLANK_SYNC70,(a0) ; Backup the original VBLANK routine
+				;move.l  a0,#old_vbl ; Backup the original VBLANK routine
+				move.l  #vbl_routine,(VBLANK_SYNC70).l ; Point to the routine to fire on VBLANK
                 move    #STATUS_REGISTER_SETTINGS,sr ;Set Interrupt Priority Mask, Bit #12  and Supervisor State to 1 			
 				;----------------------------------------------------------------------
 				move.l #Array_SpriteBuffer0,lPointerSpriteBuffer0 ; need to update the pointers to match the data
@@ -216,9 +195,13 @@ AWAIT_MOUSE_PRESS00:                              ; CODE XREF: ROM:00012692↑j
 AWAIT_MOUSE_PRESS01:                              ; CODE XREF: ROM:000127F0↓j
 				btst    #LEFT_MOUSE_BUTTON,(wMouseButton).l ; Test a Bit
                 bne.w   RESTART_GAME_SCREENS       ; Branch if Not Equal
-                bra.s   AWAIT_MOUSE_PRESS01       ; Branch Always
+				;<GRH> quit if we hit the right mouse button, turn off mouse code, get out of Supervisor mode
+				cmpi.b	#RIGHT_MOUSE_BUTTON,wMouseButton
+				bne.w	AWAIT_MOUSE_PRESS01
+				;jsr		exit
 ; ---------------------------------------------------------------------------
-                rte                     ; Return from Exception
+exit:
+	include "custom_exit.asm"
 
 ; =============== S U B R O U T I N E =======================================
 
@@ -456,7 +439,7 @@ NOT_LOST_UPDATE:  ; was loc_12A1A
                 move.w  (wPlayerY).l,d1 ; Move Data from Source to Destination
                 move.w  d1,wOldPlayerY   ; Move Data from Source to Destination
                 bsr.w   func_CalculateNewLocation0       ; Branch to Subroutine
-                move.b  #DEFAULT_VALUE_254,(a1)       ; <GRH> this is causing a random blue chunk on screen!
+                move.b  #DEFAULT_VALUE_254,(a1)
 				btst    #LEFT_MOUSE_BUTTON,(wMouseButton).l ; Test a Bit
                 beq.s   loc_12A86       ; Branch if Equal
                 btst    #1,(wGameLogicActive).l   ; Test a Bit
@@ -790,7 +773,7 @@ loc_12E16:                              ; This should be for all options greater
 ;-------------------------------------------------------------------------
 COPY_BUFFER_C_TO_ALL:
                                    ; CODE XREF: SETUP_ALL_SCREEN_BUFFERS+40↑p
-				move.b	#1,wXzapperSpeed ; <GRH> added this to try and fix the odd bug where the bottom enemy goes too fast on reset.
+				;move.b	#1,wXzapperSpeed ; <GRH> added this to try and fix the odd bug where the bottom enemy goes too fast on reset.
                 movea.l (lPointerScreenBufferA).l,a0   ; Move Address
                 move.w  #SCREEN_SIZE_LONGS,d0       ; Move Data from Source to Destination
                 movea.l (lPointerScreenBufferC).l,a1   ; Move Address
@@ -1006,7 +989,7 @@ loc_12FFA:                              ; CODE XREF: func_jump2projectilecode+12
                 bne.s   JUMP_T0_ADDRESS_IN_LIST       ; Branch if Not Equal
 
 loc_12FFE:                              ; CODE XREF: func_jump2projectilecode+2C↓j
-                lea     DATA_CHUNK_PROJECTILE(a0),a0      ; <GRH> Breaking out of the Array_CollisionsOnGrid when we shouldn't!
+                lea     DATA_CHUNK_PROJECTILE(a0),a0
                 dbf     d7,loc_12FFA    ; If False Decrement and Branch
                 rts                     ; Return from Subroutine
 ; ---------------------------------------------------------------------------
@@ -1280,8 +1263,19 @@ loc_13230:                              ; CODE XREF: ROM:00013208↑j
                 cmpi.b  #1,(a1)         ; Compare Immediate
                 beq.s   loc_131CA       ; Branch if Equal
                 bra.w   loc_1314E       ; Branch Always
-; ---------------------------------------------------------------------------
+
 	SECTION DATA;<VASM>
+ikbd_vec:
+		dc.l 0
+lOldMouseVector:
+		dc.l 0
+lOldStack:
+		dc.l 0
+;lRestoreParameters:
+;             XX  
+;		dc.b $00,$00,$01,$01 ; inverted y axis if you don't change this - just alter the original to save memory
+old_vbl:
+		dc.l 0
 lAddressListX3: ; 3 addresses one after another
 		ds.b $C
 Pattern_Gridparts:
@@ -1425,8 +1419,6 @@ Array_AlignmentBuffer:
 Array_ScreenBufferC:
 	INCBIN	title.pic ; use a preloaded picture, the filesize will increase but memory usage remains the same
 	;ds.b $7d00 ; dec 32000
-;GAP_BUFFER_02:
-;	ds.b $100 ; is this one needed? The data is just copied so it doesn't need to be aligned
 	; end of 'ROM'
 
 
