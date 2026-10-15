@@ -39,6 +39,7 @@ int main()
     const char * cOut9 = "Pods.spr";
     const char * cOutA = "DownMissile.spr";
     const char * cOutB = "PlayerExplosion.spr";
+    const char * cOutC = "Logo.spr";
     const char * cIn = "SpritesMono.bmp"; // our default input file
 
     cout << "BMP to Gridrunner sprites (mono) converter." << endl;
@@ -153,7 +154,7 @@ int main()
     }
 
     iLoops = 0;
-    for ( iGap=0; iGap<(FONT_SIZE*54);iGap+=(FONT_SIZE*2))
+    for ( iGap=0; iGap<(FONT_SIZE*74);iGap+=(FONT_SIZE*2)) //was 54
     {
         for ( iTemp=0; iTemp<FONT_SIZE;iTemp++)
         {
@@ -230,8 +231,17 @@ int main()
             fPrintme = fopen(cOutB,"wb");
 
         }
+
+        if ( iLoops == 27)
+        {
+            fclose(fPrintme);
+            fPrintme = fopen(cOutC,"wb");
+
+        }
     }
     fclose(fPrintme);
+
+    //printf("Entries in logo = %d", iLoops - 27);
 
     return 0;
 }
