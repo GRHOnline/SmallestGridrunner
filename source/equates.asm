@@ -16,6 +16,7 @@ PTERM 	equ $4c ;dec 76
 SUPERVISOR_G equ $20 ;dec 32
 IKEYBD_VECTORS equ $22 ;dec 34
 LOCATION_MOUSEVECTOR equ $10 ; dec 16, joystick is 24, clock is inbetween mouse and joystick.
+CONTERM equ $484 ; remember you need to be in supervisor mode to read/write system addresses.
 ;STATIC VALUES, not pointers!
 VALUE_HIDE_BULLET equ $FFFF
 MAX_PLAYER_LIVES equ $9 ; check against this value but the max is actually one less If >9 = 8

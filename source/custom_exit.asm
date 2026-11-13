@@ -19,10 +19,5 @@
                 trap    #GEMDOS              ; Trap (#vector Exception)
                 adda.l  #6,sp           ; Add Address		
 				
-				move.l	#0,-(sp)	; PTERM setting <GRH> causing a crash!!
-				move.l	#PTERM,-(sp)	; GEMDOS routine number
-				trap	#GEMDOS
-				
-				;clr.w -(sp) ; PTERM0
-				;trap #GEMDOS				;Return to OS
-				rts
+				clr.w -(sp) ; PTERM0
+				trap #GEMDOS				;Return to OS

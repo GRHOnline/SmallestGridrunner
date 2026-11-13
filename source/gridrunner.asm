@@ -22,14 +22,16 @@
 
 				;move.l	d0,(lPointerScreenBufferA).l		;moved code above into the title screen.
 
-                ; Enter supervisor mode
-                clr.l	-(sp)        ; Move Data from Source to Destination
-                move.w  #SUPERVISOR_G,-(sp) ; GEMDOS SUPER
-                trap    #GEMDOS           ; Trap (#vector Exception)
-                adda.l  #6,sp           ; Add Address
-				move.l	d0,lOldStack          ; backup old stack pointer
-				
+                ; Enter supervisor mode -moved to intro
+                ;clr.l	-(sp)        ; Move Data from Source to Destination
+                ;move.w  #SUPERVISOR_G,-(sp) ; GEMDOS SUPER
+                ;trap    #GEMDOS           ; Trap (#vector Exception)
+                ;adda.l  #6,sp           ; Add Address
+				;move.l	d0,lOldStack          ; backup old stack pointer
+				;turn off the key click
+				;bclr.b	#0,CONTERM.w
                 ;move.b  #0,(VID_SHIFTMD).l  ; Set screen mode to 320x200 with 16 colours already done this above in the title screen code above
+
 
                 move.l  #func_JustReturn,lPointerRunFunctionVBL ; Move Data from Source to Destination
                 clr.w   wVBlankLogicActive      
@@ -100,6 +102,8 @@ SKIP_ADDITION:
                 movep.w d0,0(a0)        ; Change the screen to a backup value HEX 16c
 				;new address of the video is 01 00 6c 00 0f 00 b7 00
                 movep.w d0,0(a0)        ; Why is this done twice?
+				;Clear out explosion trigger
+				;move.l 0,a6
 				
 				
                 ;bra.w   AWAIT_MOUSE_PRESS00       ; Since we have a press key to show the title screen, hidden this
@@ -142,6 +146,7 @@ loc_1273A:                              ; CODE XREF: ROM:0001273C↓j
                 clr.l   (a0)+           ; Clear an Operand
                 dbf     d0,loc_1273A    ; If False Decrement and Branch
                 move.w  #VALUE_HIDE_BULLET,wPlayerBulletX ; Move Data from Source to Destination
+				move.b	#0,bCooldown ;<GRH>
                 move.l  #UPDATE_GAME_LOGIC,lPointerRunFunctionVBL ; Game Logic will updated from VBL!
 
 loc_12752:                              ; CODE XREF: ROM:00012764↓j
@@ -188,7 +193,8 @@ UPDATE_GAME_LEVEL:
 NO_LIVES_DETECTED:                              ; CODE XREF: ROM:00012760↑j
                 bsr.w   NO_LIVES_RESTART       ; Branch to Subroutine
 
-AWAIT_MOUSE_PRESS00:                              ; CODE XREF: ROM:00012692↑j
+AWAIT_MOUSE_PRESS00:
+				move.w #0,wGameLogicActive ; a fix for failures to quit
 				btst    #LEFT_MOUSE_BUTTON,(wMouseButton).l ; Test a Bit
                 bne.s   AWAIT_MOUSE_PRESS00       ; Branch if Not Equal
 
@@ -198,7 +204,14 @@ AWAIT_MOUSE_PRESS01:                              ; CODE XREF: ROM:000127F0↓j
 				;<GRH> quit if we hit the right mouse button, turn off mouse code, get out of Supervisor mode
 				cmpi.b	#RIGHT_MOUSE_BUTTON,wMouseButton
 				bne.w	AWAIT_MOUSE_PRESS01
-				;jsr		exit
+				jsr SFX_SILENT
+				
+;	move.w #0,wGameLogicActive			
+;	move.w	#8,-(sp)	;Cnecin - wait for key press
+;	trap	#1		;GEMDOS
+;	addq.l	#2,sp
+
+				
 ; ---------------------------------------------------------------------------
 exit:
 	include "custom_exit.asm"
@@ -305,11 +318,19 @@ loc_128BA:                              ; CODE XREF: PROJECTILES_FUNCTION+7A↓j
 func_IsLogicOne:                              ; CODE XREF: PROJECTILES_FUNCTION+58↑j
                 btst    #1,(wGameLogicActive).l   ; Test a Bit
                 beq.s   PLAYER_DRAW       ; Branch if Equal
+				;beq.w   PLAYER_DRAW       ; Branch if Equal
                 move.w  bColourFlasher,d3   ; Move Data from Source to Destination
                 asl.w   #2,d3           ; Arithmetic Shift Left
                 move.w  #DRAW_SETTING_07,d2           ; Move Data from Source to Destination
 
 loc_128F4:                              ; CODE XREF: PROJECTILES_FUNCTION+E6↓j
+				;<GRH> Is this the best place for the sound? I think it repeats?
+				cmp.l #Pattern_Explosion,a0
+				beq.s skippy
+				jsr SFX_EXPLODE
+				;move.w #1911,(VID_COLOR2).l
+				
+skippy:
                 move.w  (wPlayerX).l,d0 ; Move Data from Source to Destination
                 move.w  (wPlayerY).l,d1 ; Move Data from Source to Destination
                 lea     (Pattern_Explosion).l,a0 ; Load Effective Address
@@ -373,7 +394,6 @@ PLAYER_DRAW:                              ; CODE XREF: PROJECTILES_FUNCTION+9A�
 
 ; =============== S U B R O U T I N E =======================================
 
-
 ;-------------------------------------------------------------------------
 ; was sub_12978:
 ;-------------------------------------------------------------------------
@@ -426,6 +446,9 @@ LIFE_LOST_UPDATE:
 				clr.b   (wMouseButton).l ; Only use this when we are not trying to match the original!
                 subi.b  #1,wPlayerLives   ; Subtract Immediate
                 move.b  #1,wLivesUpdateHUD   ; Move Data from Source to Destination
+				;<GRH>This occurs post player explosion so not suitable for triggering the sound effect
+				;Clear out explosion triggers out instead?
+				;move.w (GRID_PALETTE_UPDATES),(VID_COLOR2).l ; temp testing by changing grid colour
 
 NOT_LOST_UPDATE:  ; was loc_12A1A
                                         ; UPDATE_GAME_LOGIC+5C↑j
@@ -462,6 +485,7 @@ loc_12A86:                              ; CODE XREF: UPDATE_GAME_LOGIC+C6↑j
                 cmpi.w  #VALUE_BULLET_HEIGHT,wPlayerBulletY   ; Compare Immediate
                 bge.s   loc_12AC0       ; Branch if Greater or Equal
                 move.w  #VALUE_HIDE_BULLET,wPlayerBulletX ; Move Data from Source to Destination
+				move.b	#0,bCooldown ;<GRH>
                 bra.s   loc_12ADA       ; Branch Always
 ; ---------------------------------------------------------------------------
 
@@ -471,6 +495,16 @@ loc_12AC0:                              ; CODE XREF: UPDATE_GAME_LOGIC+11C↑j
                 bsr.w   func_CalculateNewLocation0       ; Branch to Subroutine
                 move.b  #$FF,(a1)       ; Move Data from Source to Destination
                 move.b  #$FF,-1(a1)     ; Move Data from Source to Destination
+				;<GRH> i think this is when the bullet is spawned, need to stop spam
+				cmp.b	#0,bCooldown
+				bne.s	leaper ;skip
+				move.b	#5,bCooldown ; cannot quit! WTF
+				jsr SFX_SHOOT
+;				bra.s loc_12ADA
+leaper:
+;				cmpi.b	#1,bCooldown ; if greater than zero add 1
+;				bge.b	loc_12ADA ;skip
+;				subi.b	#1,bCooldown
 
 loc_12ADA:                              ; CODE XREF: UPDATE_GAME_LOGIC+F4↑j
                                         ; UPDATE_GAME_LOGIC+126↑j
@@ -495,7 +529,7 @@ loc_12ADA:                              ; CODE XREF: UPDATE_GAME_LOGIC+F4↑j
                 bne.s   loc_12B2E       ; Branch if Not Equal
 
 loc_12B24:                              ; CODE XREF: UPDATE_GAME_LOGIC+16A↑j
-                bsr.w   sub_13082       ; Branch to Subroutine
+                bsr.w   func_LogicFreeze       ; Branch to Subroutine
                 move.w  wSideLaserX,d0   ; Move Data from Source to Destination
 
 loc_12B2E:                              ; CODE XREF: UPDATE_GAME_LOGIC+176↑j
@@ -899,7 +933,7 @@ loc_12F32:                              ; CODE XREF: ROM:00012F58↓j
 ;LIVES_DRAW:
                 clr.w   d1              ; Clear an Operand
                 move.w  #DRAW_SETTING_PLAYER,d2           ; Move Data from Source to Destination
-                lea     (Pattern_Player).l,a0 ; Load Effective Address
+                lea     (Pattern_Logo).l,a0 ; Load Effective Address
                 move.b  wPlayerLives,d3   ; Move Data from Source to Destination
                 ext.w   d3              ; Sign Extend
                 subi.w  #1,d3           ; Subtract Immediate
@@ -910,6 +944,8 @@ loc_12F7A:                              ; CODE XREF: ROM:00012F86↓j
                 bsr.w   DRAW_FUNCTION       ; Branch to Subroutine
                 addi.w  #$10,d0         ; Add Immediate
                 move.w  (sp)+,d3        ; Move Data from Source to Destination
+				;<GRH> add 16 bytes for each life to use a different image
+				add.w	#16,a0
                 dbf     d3,loc_12F7A    ; If False Decrement and Branch
 
 loc_12F8A:                              ; CODE XREF: ROM:00012F78↑j
@@ -1044,6 +1080,8 @@ func_SecondInAddressList: ; address $013054
                 cmpi.b  #$FF,(a1)       ; Compare Immediate
                 bne.w   loc_13142       ; Branch if Not Equal
                 move.w  #VALUE_HIDE_BULLET,wPlayerBulletX ; Move Data from Source to Destination
+				;<GRH> clear our sound spam Value
+				move.b	#0,bCooldown 
 
 loc_1306A:                              ; CODE XREF: ROM:00013058↑j
                 move.w  4(a0),d0        ; Move Data from Source to Destination
@@ -1058,17 +1096,22 @@ loc_1306A:                              ; CODE XREF: ROM:00013058↑j
 
 
 ;-------------------------------------------------------------------------
-; sub_13082:
+; was sub_13082:
 ;-------------------------------------------------------------------------
-sub_13082:
+func_LogicFreeze:
                                    ; CODE XREF: UPDATE_GAME_LOGIC:loc_12B24↑p
                                         ; func_ValidateNewLocation:+14↓p
                 btst    #1,(wGameLogicActive).l   ; Test a Bit
                 bne.w   RTS_COMMAND    ; Branch if Not Equal
                 clr.w   bColourFlasher      ; Clear an Operand
                 bset    #1,(wGameLogicActive).l   ; Test a Bit and Set
+				
+				;Has the logic value changed? <GRH>
+				;jsr SOUND_FX0
+				;move.l #sound_die,a6
+								
                 rts                     ; Return from Subroutine
-; End of function sub_13082
+; End of function func_LogicFreeze
 
 
 ; =============== S U B R O U T I N E =======================================
@@ -1087,7 +1130,7 @@ func_ValidateNewLocation:
                 cmpi.b  #VALUE_VALIDATION,(a1)       ; Compare Immediate
                 bne.w   loc_130BC       ; Branch if Not Equal
                 move.l  a1,-(sp)        ; Move Data from Source to Destination
-                bsr.w   sub_13082       ; Branch to Subroutine
+                bsr.w   func_LogicFreeze       ; Branch to Subroutine
                 movea.l (sp)+,a1        ; Move Address
                 move.b  #VALUE_VALIDATION,(a1)       ; Move Data from Source to Destination
 
@@ -1110,6 +1153,7 @@ BULLET_HITS_OR_OFF_SCREEN: ; custom pointer to here should have a value $13264
                 bsr.w   func_CalculateNewLocation0       ; Takes d0 & d1, shifts and adds them, new address in a1, d2 changed as well
                 clr.b   (a1)            ; Not using the new address! Clear an Operand
                 move.w  #VALUE_HIDE_BULLET,wPlayerBulletX ; Move Data from Source to Destination
+				move.b	#0,bCooldown ;<GRH>
                 subi.l  #$10,6(a0)      ; Subtract Immediate
                 addi.w  #1,$C(a0)       ; Add Immediate
                 move.w  #7,d0           ; Move Data from Source to Destination
@@ -1264,7 +1308,32 @@ loc_13230:                              ; CODE XREF: ROM:00013208↑j
                 beq.s   loc_131CA       ; Branch if Equal
                 bra.w   loc_1314E       ; Branch Always
 
+SFX_EXPLODE: ;<GRH> custom code!
+	movem.l d0-a6,-(sp)     ; Move Multiple Registers ;backup should this be to the stack instead?
+	move.l	#sound_die,a6
+	bra.s SOUND_PLAY
+SFX_SHOOT:
+	movem.l d0-a6,-(sp)     ; Move Multiple Registers ;backup
+	move.l	#sound_shoot,a6
+	bra.s SOUND_PLAY
+SFX_WARNING:
+	movem.l d0-a6,-(sp)     ; Move Multiple Registers ;backup
+	move.l	#sound_warning,a6 ; tie this to the big lazer being fire so we use a slightly different fire sound!
+	bra.s SOUND_PLAY
+SFX_SILENT:
+	movem.l d0-a6,-(sp)     ; Move Multiple Registers ;backup
+	move.l	#sound_silent,a6
+SOUND_PLAY:
+	move.l 	a6,-(sp)
+	move.w	#32,-(sp)
+	trap	#14
+	add.w	#6,sp
+    movem.l (sp)+,d0-a6     ; Move Multiple Registers
+	rts
+
 	SECTION DATA;<VASM>
+Array_Sounds: 
+	include "sounds.asm" ; causing an issue where we cannot quit properly?!
 ikbd_vec:
 		dc.l 0
 lOldMouseVector:
@@ -1278,6 +1347,8 @@ old_vbl:
 		dc.l 0
 lAddressListX3: ; 3 addresses one after another
 		ds.b $C
+Pattern_Logo:
+		INCBIN "Logo.spr" ; some contain multiple entries such as this one
 Pattern_Gridparts:
 		INCBIN "Grid.spr" ; These are single colour only so called them Patterns rather than sprites
 Pattern_Player:
@@ -1336,7 +1407,7 @@ wMouseY:
 		ds.w $1    
 ; Used to build the grid image but also navigation points for the enemy AI, I think		
 Array_StaticLocationsForGrid: 
-		INCBIN "FullScreen.bin" ; Hex 320 Dec 800 bytes in size
+		INCBIN "FullScreen.bin" ; Hex 320 Dec 800 bytes in size		
 	SECTION BSS;<VASM>
 Array_SpriteBuffer0:
 	ds.b $1000 ; dec 4096
@@ -1420,6 +1491,8 @@ Array_ScreenBufferC:
 	INCBIN	title.pic ; use a preloaded picture, the filesize will increase but memory usage remains the same
 	;ds.b $7d00 ; dec 32000
 	; end of 'ROM'
+bCooldown:
+	ds.b $1 ; have to put this at the end or it pushes other data too far?
 
 
                 END

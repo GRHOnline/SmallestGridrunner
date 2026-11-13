@@ -7,6 +7,8 @@
 	add.l	#12,sp
 
 	DC.W	$a00a		;Line A 10 : Hide the cursor
+	
+
 
 	move.l	#Array_AlignmentBuffer,-(sp)	;New palette data shoved into a pre-existing buffer, only use it here.
 	move.w	#6,-(sp)	;Setpalette
@@ -28,6 +30,22 @@ loopcopy:
 	move.l	(a0)+,(a1)+
 	dbf	d0,loopcopy
 
+; Enter supervisor mode -moved from main code
+    clr.l	-(sp)        ; Move Data from Source to Destination
+    move.w  #SUPERVISOR_G,-(sp) ; GEMDOS SUPER
+    trap    #GEMDOS           ; Trap (#vector Exception)
+    adda.l  #6,sp           ; Add Address
+	move.l	d0,lOldStack          ; backup old stack pointer
+
+	;turn off the key click
+	bclr.b	#0,CONTERM					
+	; play intro sound / jingle - works but causing the program to fail when quitting if not in supervisor mode!
+	move.l	#sound_intro,a1
+	move.l	a1,-(sp)
+	move.w	#32,-(sp)
+	trap	#14
+	add.w	#6,sp
+	
 	move.w	#8,-(sp)	;Cnecin - wait for key press
 	trap	#1		;GEMDOS
 	addq.l	#2,sp
