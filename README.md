@@ -6,7 +6,8 @@ In my testing I was able to run Gridrunner on the Hatari emulator with the follo
 * 512kib of Ram but boots TOS from a floppy ( Emulated 260ST )
   
 If you have one of those rare machines please test this and let me know how it goes.
-The game should be run in Low resolution and has no sound, just use the mouse to move your ship and button 1 to fire / restart after death.
+I have added some Sound FX to the game but these are just place holders, if you can do better please get in touch so I can improve it.
+Use the mouse to move your ship and button 1 to fire / restart after death.
 Instead of restarting after running out of lives press mouse button 2 to quit.
 
 The original decompilation can be found here. https://github.com/mwenge/gridrunner.
